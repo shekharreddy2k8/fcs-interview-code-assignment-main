@@ -1,8 +1,9 @@
 name: CI
 
 on:
-  push:   [ "main" ]           # triggers on every branch pushed
-  pull_request:   [ "main" ]   # triggers on every PR regardless of base branch
+  push: 
+    branches: [ "main" ]           # triggers on every branch pushed
+  pull_request:    # triggers on every PR regardless of base branch
   workflow_dispatch: # allows manual runs from the Actions tab
 
 jobs:
@@ -22,13 +23,13 @@ jobs:
           cache: maven
 
       - name: Build and run tests with JaCoCo coverage
-        working-directory: fcs-interview-code-assignment-main/java-assignment
+        working-directory: java-assignment
         # verify phase: compiles, runs unit tests, generates JaCoCo report, enforces 80% threshold
         run: ./mvnw verify --no-transfer-progress
 
       - name: Publish coverage summary to Actions step summary
         if: always()
-        working-directory: fcs-interview-code-assignment-main/java-assignment
+        working-directory: java-assignment
         run: |
           REPORT=target/site/jacoco/jacoco.xml
           if [ ! -f "$REPORT" ]; then
@@ -65,5 +66,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: jacoco-coverage-report
-          path: fcs-interview-code-assignment-main/java-assignment/target/site/jacoco/
+          path: java-assignment/target/site/jacoco/
           retention-days: 14
