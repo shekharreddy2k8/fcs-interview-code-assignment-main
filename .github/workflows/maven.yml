@@ -1,35 +1,69 @@
-# This workflow will build a Java project with Maven, and cache/restore any dependencies to improve the workflow execution time
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-maven
-
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
-name: Java CI with Maven
+name: CI
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  push:   [ "main" ]           # triggers on every branch pushed
+  pull_request:   [ "main" ]   # triggers on every PR regardless of base branch
+  workflow_dispatch: # allows manual runs from the Actions tab
 
 jobs:
-  build:
-
+  build-and-test:
+    name: Build, Test & Coverage
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: maven
-    - name: Build with Maven
-      run: mvn -B package --file pom.xml
+      - name: Checkout source
+        uses: actions/checkout@v4
 
-    # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
-    - name: Update dependency graph
-      uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and run tests with JaCoCo coverage
+        working-directory: fcs-interview-code-assignment-main/java-assignment
+        # verify phase: compiles, runs unit tests, generates JaCoCo report, enforces 80% threshold
+        run: ./mvnw verify --no-transfer-progress
+
+      - name: Publish coverage summary to Actions step summary
+        if: always()
+        working-directory: fcs-interview-code-assignment-main/java-assignment
+        run: |
+          REPORT=target/site/jacoco/jacoco.xml
+          if [ ! -f "$REPORT" ]; then
+            echo '## JaCoCo Coverage Report' >> $GITHUB_STEP_SUMMARY
+            echo 'Coverage report not found – tests may have failed before reporting.' >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+          python3 - <<'EOF'
+          import xml.etree.ElementTree as ET, os
+          tree = ET.parse('target/site/jacoco/jacoco.xml')
+          counters = {c.get('type'): c for c in tree.getroot().findall('counter')}
+          order = ['INSTRUCTION', 'BRANCH', 'LINE', 'COMPLEXITY', 'METHOD', 'CLASS']
+          rows = []
+          for t in order:
+            if t not in counters:
+              continue
+            c = counters[t]
+            missed  = int(c.get('missed', 0))
+            covered = int(c.get('covered', 0))
+            total   = missed + covered
+            pct     = f'{100*covered//total}%' if total else 'N/A'
+            rows.append(f'| {t.capitalize()} | {covered} | {missed} | {total} | **{pct}** |')
+          summary = '\n'.join(rows)
+          out = os.environ['GITHUB_STEP_SUMMARY']
+          with open(out, 'a') as f:
+            f.write('## JaCoCo Coverage Report\n')
+            f.write('| Metric | Covered | Missed | Total | Coverage |\n')
+            f.write('|--------|--------:|-------:|------:|---------:|\n')
+            f.write(summary + '\n')
+          EOF
+
+      - name: Upload JaCoCo HTML coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-coverage-report
+          path: fcs-interview-code-assignment-main/java-assignment/target/site/jacoco/
+          retention-days: 14
