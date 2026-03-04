@@ -96,6 +96,18 @@ public class ReplaceWarehouseUseCaseTest {
 		assertThrows(IllegalArgumentException.class, () -> useCase.replace(replacement));
 	}
 
+	@Test
+	void shouldRejectWhenReplacementExceedsLocationMaxCapacity() {
+		// ZWOLLE-001 maxCapacity=40; add one neighbour warehouse with capacity 30
+		// (only 1 other active → max-warehouses check passes, but capacity will fail)
+		Warehouse neighbor = warehouse("MWH.601", "ZWOLLE-001", 30, 5);
+		warehouseStore.create(neighbor);
+
+		// Replacing MWH.600 with capacity 15: 30 (neighbor) + 15 (new) = 45 > 40
+		Warehouse replacement = warehouse("MWH.600", "ZWOLLE-001", 15, 7);
+		assertThrows(IllegalArgumentException.class, () -> useCase.replace(replacement));
+	}
+
 	private static Warehouse warehouse(String businessUnitCode, String location, Integer capacity, Integer stock) {
 		Warehouse warehouse = new Warehouse();
 		warehouse.businessUnitCode = businessUnitCode;
