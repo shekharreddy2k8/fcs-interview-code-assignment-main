@@ -82,7 +82,6 @@ public class WarehouseResourceImpl implements WarehouseResource {
     response.setLocation(warehouse.location);
     response.setCapacity(warehouse.capacity);
     response.setStock(warehouse.stock);
-
     return response;
   }
 
